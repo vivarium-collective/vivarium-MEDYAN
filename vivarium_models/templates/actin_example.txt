@@ -12,9 +12,9 @@
 # Set the number of compartments in x, y and z directions
 # Network size = compartment size (500nm by default) * (NX, NY, NZ)
 
-NX:                          2
-NY:                          2
-NZ:                          4
+NX:                          {{n_compartments}}
+NY:                          {{n_compartments}}
+NZ:                          {{n_compartments}}
 
 # Define network boundary geometry (CUBIC, SPHERICAL, CYLINDER)
 

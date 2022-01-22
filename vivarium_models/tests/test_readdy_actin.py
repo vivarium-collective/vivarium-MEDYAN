@@ -6,6 +6,8 @@ Tests for actin ReaDDy models
 """
 
 from vivarium_models import ReaddyActinProcess
+from vivarium.core.composition import simulate_process
+from vivarium_models.util import readdy_actin_test_monomers
 
 
 def remove_extra_dim(list):
@@ -17,7 +19,14 @@ def test_readdy_actin_process():
     """
     Test the initial ReaDDy actin process
     """
-    output = ReaddyActinProcess.run_readdy_actin_process()["monomers"]
+    # initialize the process
+    readdy_actin_process = ReaddyActinProcess({})
+    # run the simulation
+    sim_settings = {
+        "total_time": 0.000000005,  # 50 steps
+        "initial_state": readdy_actin_test_monomers,
+    }
+    output = simulate_process(readdy_actin_process, sim_settings)["monomers"]
 
     found_monomer = False
     found_dimer = False

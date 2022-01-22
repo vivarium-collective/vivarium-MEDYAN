@@ -8,8 +8,10 @@ from vivarium.core.composition import (
     PROCESS_OUT_DIR,
 )
 from vivarium.plots.simulation_output import plot_simulation_output
+from vivarium_models.util import medyan_chandrasekaran_2019_fibers
 
 from jinja2 import Environment, PackageLoader, select_autoescape
+from simularium_models_util.actin import ActinGenerator, FiberData
 
 env = Environment(
     loader=PackageLoader("vivarium_models"), autoescape=select_autoescape()
@@ -19,6 +21,7 @@ from pathlib import Path
 import subprocess
 
 NAME = "MEDYAN"
+DEFAULT_COMPARTMENT_SIZE = 500.0
 
 
 class MedyanProcess(Process):
@@ -34,7 +37,6 @@ class MedyanProcess(Process):
         "output_directory": "out/",
         "medyan_executable": "medyan",
         "snapshot": 1.0,
-        "tranform_bounds": np.array([0, 0, 0]),
         # TODO: provide a way to parameterize type name,
         #    translating between simulation type names and MEDYAN type indexes
     }
@@ -46,8 +48,8 @@ class MedyanProcess(Process):
 
     def ports_schema(self):
         return {
-            "fibers_box_extent": {
-                "_default": np.array([4000.0, 2000.0, 2000.0]),
+            "fibers_box_size": {
+                "_default": 0.0,
                 "_updater": "set",
                 "_emit": True,
             },
@@ -73,19 +75,9 @@ class MedyanProcess(Process):
             for unique_id, points in config.get("fibers", {}).items()
         }
         return {
-            "fibers_box_extent": np.array([4000.0, 2000.0, 2000.0]),
+            "fibers_box_size": config["fibers_box_size"],
             "fibers": initial_fibers,
         }
-
-    def transform_points(self, points, inverse=False):
-        transform = np.array(self.parameters["transform_points"])
-        if inverse:
-            transform = -transform
-        return [transform + point for point in points]
-
-    def transform_fiber(self, fiber, inverse=False):
-        fiber["points"] = self.transform_points(fiber["points"], inverse)
-        return fiber
 
     def read_snapshot(self, snapshot_path):
         # TODO: read only the last timepoint for each fiber
@@ -109,16 +101,37 @@ class MedyanProcess(Process):
         return fibers
 
     def next_update(self, timestep, state):
-        print("in medyan process next update")
+        print("UNICORN in medyan process next update")
 
         initial_fibers = state["fibers"]
-        fiber_ids = list(initial_fibers.keys())
+        fibers_data = []
+        for fiber_id in initial_fibers:
+            fibers_data.append(FiberData(
+                fiber_id=fiber_id,
+                points=initial_fibers[fiber_id]["points"],
+                type_name=initial_fibers[fiber_id]["type_name"],
+            ))
+        
+        cropped_fibers_data = ActinGenerator.get_cropped_fibers(
+            fibers_data=fibers_data, 
+            min_extent=np.zeros(3),
+            max_extent=np.array(3 * [state["fibers_box_size"]]),
+        )
+        cropped_fibers = {
+            fiber_data.fiber_id : {
+                "type_name": "Actin-Polymer", # TODO convert MEDYAN types
+                "points": fiber_data.points
+            }
+            for fiber_data in cropped_fibers_data
+        }
+        
+        fiber_ids = list(cropped_fibers.keys())
 
         fiber_lines = [
             MedyanProcess.fiber_to_string(
-                fiber["type_name"], self.transform_points(fiber["points"])
+                fiber["type_name"], fiber["points"]
             )
-            for fiber in initial_fibers.values()
+            for fiber in cropped_fibers.values()
         ]
 
         input_directory = Path(self.parameters["input_directory"]) / Path(
@@ -136,14 +149,16 @@ class MedyanProcess(Process):
         fiber_path = input_directory / "filaments.txt"
         with open(fiber_path, "w") as fiber_file:
             fiber_file.write(fiber_text)
-
+            
+        n_compartments = int(round(
+            float(state["fibers_box_size"]) / DEFAULT_COMPARTMENT_SIZE))
         system_template = self.parameters["model_name"] + ".txt"
         template = env.get_template(system_template)
         system_text = template.render(
             timestep=timestep,
             snapshot_time=self.parameters["snapshot"],
+            n_compartments=n_compartments,
         )
-        box_extent = MedyanProcess.read_box_extent(system_text)
 
         system_path = input_directory / (self.parameters["model_name"] + ".txt")
         with open(system_path, "w") as system_file:
@@ -165,18 +180,16 @@ class MedyanProcess(Process):
 
         print(output.decode("utf-8"))
 
-        # TODO: perform the reverse transform for output points
-
         fibers = self.read_snapshot(output_directory / "snapshot.traj")
 
         fibers = {
-            fiber_ids[int(id)]: self.transform_fiber(fiber, inverse=True)
+            fiber_ids[int(id)]: fiber
             for id, fiber in fibers.items()
         }
-
-        import ipdb; ipdb.set_trace()
         
-        return {"fibers_box_extent": box_extent, "fibers": fibers}
+        # import ipdb; ipdb.set_trace()
+        
+        return {"fibers": fibers}
 
     @staticmethod
     def fiber_to_string(type_name, points):
@@ -195,24 +208,14 @@ class MedyanProcess(Process):
 
     @staticmethod
     def read_fiber(fiber_line, coordinates_line):
-        _, id, type, length, delta_l, delta_r = fiber_line.split(" ")
+        _, id, type_name, length, delta_l, delta_r = fiber_line.split(" ")
         coordinates = MedyanProcess.read_coordinates(coordinates_line)
-        return {id: {"type_name": type, "points": coordinates}}
-
-    @staticmethod
-    def read_box_extent(system_text):
-        lines = system_text.split("\n")
-        n_compartments = np.zeros(3)
-        compartment_size = np.zeros(3)
-        coords = ["X", "Y", "Z"]
-        for line in lines:
-            for dim in range(len(coords)):
-                coord = coords[dim]
-                if f"N{coord}:" in line:
-                    n_compartments[dim] = int(line.split()[1])
-                if f"COMPARTMENTSIZE{coord}:" in line:
-                    compartment_size[dim] = float(line.split()[1])
-        return np.multiply(n_compartments, compartment_size)
+        return {
+            id: {
+                "type_name": "Actin-Polymer",  # TODO convert MEDYAN integer type to type name
+                "points": coordinates
+            }
+        }
 
 
 def main():
@@ -232,229 +235,21 @@ def main():
     medyan = MedyanProcess(
         {
             "medyan_executable": args.medyan_executable_path,
-            "transform_points": [500, 500, 500],
             "time_step": 10.0,
         }
     )
     initial_state = {
-        "fibers_box_extent": np.array([4000.0, 2000.0, 2000.0]),
-        "fibers": {
-            "1": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 912.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 912.50000000, 1000.00000000]),
-                ],
-            },
-            "2": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 947.50000000, 939.37822174]),
-                    np.array([3160.00000000, 947.50000000, 939.37822174]),
-                ],
-            },
-            "3": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 930.00000000, 969.68911087]),
-                    np.array([3160.00000000, 930.00000000, 969.68911087]),
-                ],
-            },
-            "4": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 947.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 947.50000000, 1000.00000000]),
-                ],
-            },
-            "5": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 930.00000000, 1030.31088913]),
-                    np.array([3160.00000000, 930.00000000, 1030.31088913]),
-                ],
-            },
-            "6": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 947.50000000, 1060.62177826]),
-                    np.array([3160.00000000, 947.50000000, 1060.62177826]),
-                ],
-            },
-            "7": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 965.00000000, 909.06733260]),
-                    np.array([3160.00000000, 965.00000000, 909.06733260]),
-                ],
-            },
-            "8": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 982.50000000, 939.37822174]),
-                    np.array([3160.00000000, 982.50000000, 939.37822174]),
-                ],
-            },
-            "9": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 965.00000000, 969.68911087]),
-                    np.array([3160.00000000, 965.00000000, 969.68911087]),
-                ],
-            },
-            "10": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 982.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 982.50000000, 1000.00000000]),
-                ],
-            },
-            "11": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 965.00000000, 1030.31088913]),
-                    np.array([3160.00000000, 965.00000000, 1030.31088913]),
-                ],
-            },
-            "12": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 982.50000000, 1060.62177826]),
-                    np.array([3160.00000000, 982.50000000, 1060.62177826]),
-                ],
-            },
-            "13": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 965.00000000, 1090.93266740]),
-                    np.array([3160.00000000, 965.00000000, 1090.93266740]),
-                ],
-            },
-            "14": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1000.00000000, 909.06733260]),
-                    np.array([3160.00000000, 1000.00000000, 909.06733260]),
-                ],
-            },
-            "15": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1017.50000000, 939.37822174]),
-                    np.array([3160.00000000, 1017.50000000, 939.37822174]),
-                ],
-            },
-            "16": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1000.00000000, 969.68911087]),
-                    np.array([3160.00000000, 1000.00000000, 969.68911087]),
-                ],
-            },
-            "17": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1017.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 1017.50000000, 1000.00000000]),
-                ],
-            },
-            "18": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1000.00000000, 1030.31088913]),
-                    np.array([3160.00000000, 1000.00000000, 1030.31088913]),
-                ],
-            },
-            "19": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1017.50000000, 1060.62177826]),
-                    np.array([3160.00000000, 1017.50000000, 1060.62177826]),
-                ],
-            },
-            "20": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1000.00000000, 1090.93266740]),
-                    np.array([3160.00000000, 1000.00000000, 1090.93266740]),
-                ],
-            },
-            "21": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1035.00000000, 909.06733260]),
-                    np.array([3160.00000000, 1035.00000000, 909.06733260]),
-                ],
-            },
-            "22": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1052.50000000, 939.37822174]),
-                    np.array([3160.00000000, 1052.50000000, 939.37822174]),
-                ],
-            },
-            "23": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1035.00000000, 969.68911087]),
-                    np.array([3160.00000000, 1035.00000000, 969.68911087]),
-                ],
-            },
-            "24": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1052.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 1052.50000000, 1000.00000000]),
-                ],
-            },
-            "25": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1035.00000000, 1030.31088913]),
-                    np.array([3160.00000000, 1035.00000000, 1030.31088913]),
-                ],
-            },
-            "26": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1052.50000000, 1060.62177826]),
-                    np.array([3160.00000000, 1052.50000000, 1060.62177826]),
-                ],
-            },
-            "27": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1035.00000000, 1090.93266740]),
-                    np.array([3160.00000000, 1035.00000000, 1090.93266740]),
-                ],
-            },
-            "28": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1070.00000000, 969.68911087]),
-                    np.array([3160.00000000, 1070.00000000, 969.68911087]),
-                ],
-            },
-            "29": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1087.50000000, 1000.00000000]),
-                    np.array([3160.00000000, 1087.50000000, 1000.00000000]),
-                ],
-            },
-            "30": {
-                "type_name": "Actin-Polymer",
-                "points": [
-                    np.array([1000.00000000, 1070.00000000, 1030.31088913]),
-                    np.array([3160.00000000, 1070.00000000, 1030.31088913]),
-                ],
-            },
-        },
+        "fibers_box_size": 4000.0,
+        "fibers": medyan_chandrasekaran_2019_fibers,
     }
 
     output = simulate_process(
         medyan,
-        {"initial_state": initial_state, "total_time": 100, "return_raw_data": True},
+        {
+            "initial_state": initial_state, 
+            "total_time": 100, 
+            "return_raw_data": True
+        },
     )
 
     # plot the simulation output

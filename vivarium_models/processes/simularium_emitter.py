@@ -77,7 +77,7 @@ class SimulariumEmitter(Emitter):
         trajectory["positions"].append([])
         edge_ids = []
         edge_positions = []
-        for particle_id in monomers["particles"]:
+        for particle_id in monomers.get("particles", {}):
             particle = monomers["particles"][particle_id]
             trajectory["unique_ids"][time_index].append(int(particle_id))
             trajectory["type_names"][time_index].append(particle["type_name"])
@@ -270,7 +270,7 @@ class SimulariumEmitter(Emitter):
             if prev_simulator == "medyan":
                 print(f"  visualize medyan")
                 if box_dimensions is None:
-                    box_dimensions = np.array(state["fibers_box_extent"])
+                    box_dimensions = np.array(3 * [state["fibers_box_size"]])
                 trajectory = self.get_simularium_fibers(
                     vizualize_time_index,
                     state["fibers"],
@@ -293,7 +293,7 @@ class SimulariumEmitter(Emitter):
                 if current_simulator == "medyan":
                     print(f"  visualize medyan")
                     if box_dimensions is None:
-                        box_dimensions = np.array(state["fibers_box_extent"])
+                        box_dimensions = np.array(3 * [state["fibers_box_size"]])
                     trajectory = self.get_simularium_fibers(
                         vizualize_time_index,
                         state["fibers"],
@@ -304,14 +304,17 @@ class SimulariumEmitter(Emitter):
                     vizualize_time_index += 1
                 if current_simulator == "readdy":
                     print(f"  visualize readdy")
-                    trajectory = self.get_simularium_monomers(
-                        vizualize_time_index,
-                        state["monomers"],
-                        actin_radius,
-                        np.array(state["monomers"]["box_center"])
-                        - 0.5 * box_dimensions,
-                        trajectory,
-                    )
+                    try:
+                        trajectory = self.get_simularium_monomers(
+                            vizualize_time_index,
+                            state["monomers"],
+                            actin_radius,
+                            np.array(state["monomers"]["box_center"])
+                            - 0.5 * box_dimensions,
+                            trajectory,
+                        )
+                    except:
+                        raise Exception(state["monomers"])
                     vizualize_time_index += 1
         simularium_converter = SimulariumEmitter.get_simularium_converter(
             trajectory, box_dimensions, 0.1

@@ -3,13 +3,13 @@
 
 NDIM:                        3
 
-NX:                          15
-NY:                          15
-NZ:                          15
+NX:                          {{n_compartments}}
+NY:                          {{n_compartments}}
+NZ:                          {{n_compartments}}
 
-COMPARTMENTSIZEX:            500.0
-COMPARTMENTSIZEY:            500.0
-COMPARTMENTSIZEZ:            500.0
+COMPARTMENTSIZEX:            500
+COMPARTMENTSIZEY:            500
+COMPARTMENTSIZEZ:            500
 
 MONOMERSIZE:                 2.7
  

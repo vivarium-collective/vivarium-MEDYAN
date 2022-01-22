@@ -3,6 +3,7 @@ import numpy as np
 from vivarium.core.process import Process
 from vivarium.core.engine import Engine, pf
 from vivarium.core.composition import simulate_process
+from vivarium_models.util import readdy_actin_test_monomers
 
 from tqdm import tqdm
 from simularium_models_util.actin import ActinSimulation, ActinUtil, ActinTestData
@@ -11,40 +12,6 @@ from vivarium_models.util import create_monomer_update
 
 
 NAME = "ReaDDy_actin"
-
-test_monomer_data = {
-    "monomers": {
-        "box_center": np.array([3000.0, 1000.0, 1000.0]),  # to be chosen by alternator
-        "box_size": 500.0,
-        "topologies": {
-            1: {
-                "type_name": "Arp23-Dimer",
-                "particle_ids": [1, 2],
-            },
-            0: {
-                "type_name": "Actin-Monomer",
-                "particle_ids": [0],
-            },
-        },
-        "particles": {
-            0: {
-                "type_name": "actin#free_ATP",
-                "position": np.array([2, 0, 0]),
-                "neighbor_ids": [],
-            },
-            1: {
-                "type_name": "arp2",
-                "position": np.array([0, 0, 0]),
-                "neighbor_ids": [2],
-            },
-            2: {
-                "type_name": "arp3#ATP",
-                "position": np.array([0, 0, 4]),
-                "neighbor_ids": [1],
-            },
-        },
-    }
-}
 
 
 class ReaddyActinProcess(Process):
@@ -60,7 +27,7 @@ class ReaddyActinProcess(Process):
         "total_steps": 1e3,
         "time_step": 0.0000001,
         "internal_timestep": 0.1,
-        "box_size": 500.0,  # nm
+        "box_size": 1000.0,  # nm
         "temperature_C": 22.0,  # from Pollard experiments
         "viscosity": 8.1,  # cP, viscosity in cytoplasm
         "force_constant": 250.0,
@@ -109,6 +76,7 @@ class ReaddyActinProcess(Process):
         "nonspatial_polymerization": False,
         "verbose": False,
         "periodic_boundary": False,
+        "obstacle_radius": 35.0,
     }
 
     def __init__(self, parameters=None):
@@ -121,12 +89,12 @@ class ReaddyActinProcess(Process):
         return {
             "monomers": {
                 "box_center": {
-                    "_default": np.array([3000.0, 1000.0, 1000.0]),
+                    "_default": np.zeros(3),
                     "_updater": "set",
                     "_emit": True,
                 },
                 "box_size": {
-                    "_default": 500.0,
+                    "_default": 0.0,
                     "_updater": "set",
                     "_emit": True,
                 },
@@ -168,7 +136,7 @@ class ReaddyActinProcess(Process):
 
     def initial_state(self, config=None):
         # TODO: make this more general
-        return test_monomer_data
+        return readdy_actin_test_monomers
 
     def simulate_readdy(self, timestep):
         """
@@ -207,40 +175,28 @@ class ReaddyActinProcess(Process):
         self.readdy_simulation._run_custom_loop(loop)
 
     def next_update(self, timestep, states):
-        print("in readdy actin process next update")
+        print("UNICORN in readdy actin process next update")
 
         ActinUtil.add_monomers_from_data(self.readdy_simulation, states["monomers"])
         self.simulate_readdy(timestep)
         readdy_monomers = ReaddyUtil.get_current_monomers(
             self.readdy_simulation.current_topologies
         )
+        
+        # import ipdb; ipdb.set_trace()
 
-        return create_monomer_update(states["monomers"], readdy_monomers)
-
-    # functions to configure and run the process
-    def run_readdy_actin_process():
-        """
-        Run a simulation of the process.
-
-        Returns:
-            The simulation output.
-        """
-        # initialize the process
-        readdy_actin_process = ReaddyActinProcess({})
-
-        # run the simulation
-        sim_settings = {
-            "total_time": 0.000000005,  # 50 steps
-            "initial_state": test_monomer_data,
-        }
-        output = simulate_process(readdy_actin_process, sim_settings)
-        return output
+        return create_monomer_update(
+            states["monomers"], 
+            readdy_monomers, 
+            states["monomers"]["box_center"], 
+            states["monomers"]["box_size"]
+        )
 
 
 def test_readdy_actin_process():
     monomer_data = ActinTestData.linear_actin_monomers()
-    monomer_data["box_center"] = np.array([3000.0, 1000.0, 1000.0])
-    monomer_data["box_size"] = 500.0
+    monomer_data["box_center"] = np.zeros(3)
+    monomer_data["box_size"] = 200.0
     readdy_actin_process = ReaddyActinProcess()
 
     engine = Engine(

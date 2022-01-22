@@ -15,8 +15,8 @@ class FiberToMonomer(Deriver):
 
     def ports_schema(self):
         return {
-            "fibers_box_extent": {
-                "_default": np.array([4000.0, 2000.0, 2000.0]),
+            "fibers_box_size": {
+                "_default": 0.0,
                 "_updater": "set",
                 "_emit": True,
             },
@@ -36,12 +36,12 @@ class FiberToMonomer(Deriver):
             },
             "monomers": {
                 "box_center": {
-                    "_default": np.array([3000.0, 1000.0, 1000.0]),
+                    "_default": np.zeros(3),
                     "_updater": "set",
                     "_emit": True,
                 },
                 "box_size": {
-                    "_default": 500.0,
+                    "_default": 0.0,
                     "_updater": "set",
                     "_emit": True,
                 },
@@ -82,12 +82,10 @@ class FiberToMonomer(Deriver):
         }
 
     def next_update(self, timestep, states):
-        print("in fiber to monomer deriver next update")
+        print("UNICORN in fiber to monomer deriver next update")
 
         fiber_data = states["fibers"]
         previous_monomers = states["monomers"]
-        monomer_box_center = previous_monomers["box_center"]
-        monomer_box_size = previous_monomers["box_size"]
 
         fibers = [
             FiberData(fiber_id, fiber_data[fiber_id]["points"])
@@ -95,15 +93,29 @@ class FiberToMonomer(Deriver):
             if len(fiber_data[fiber_id]["points"]) > 1
         ]
 
+        # TODO alternator should choose these
+        monomer_box_center = np.array([2000.0, 1000.0, 1000.0])
+        monomer_box_size = 1000.0
+
         fiber_monomers = ActinGenerator.get_monomers(
-            fibers, monomer_box_center, monomer_box_size, use_uuids=False
+            fibers_data=fibers, 
+            child_box_center=monomer_box_center, 
+            child_box_size=monomer_box_size, 
+            use_uuids=False,
         )
+        
         for particle_id in fiber_monomers["particles"]:
             fiber_monomers["particles"][particle_id] = dict(
                 fiber_monomers["particles"][particle_id]
             )
 
-        return create_monomer_update(previous_monomers, fiber_monomers)
+        result = create_monomer_update(
+            previous_monomers, fiber_monomers, monomer_box_center, monomer_box_size
+        )
+        
+        # import ipdb; ipdb.set_trace()
+        
+        return result
 
 
 def get_initial_fiber_data():
@@ -123,11 +135,15 @@ def test_fiber_to_monomer():
             "processes": {"fiber_to_monomer": fiber_to_monomer},
             "topology": {
                 "fiber_to_monomer": {
+                    "fibers_box_size": ("fibers_box_size",),
                     "fibers": ("fibers",),
                     "monomers": ("monomers",),
                 }
             },
-            "initial_state": {"fibers": fiber_data, "monomers": {}},
+            "initial_state": {
+                "fibers_box_size": 200.0, 
+                "fibers": fiber_data, 
+                "monomers": {}},
         }
     )
 
