@@ -94,8 +94,8 @@ class FiberToMonomer(Deriver):
         ]
 
         # TODO alternator should choose these
-        monomer_box_center = np.array([2000.0, 1000.0, 1000.0])
-        monomer_box_size = 1000.0
+        monomer_box_center = np.array([1200.0, 1500.0, 1500.0])
+        monomer_box_size = 500.0
 
         fiber_monomers = ActinGenerator.get_monomers(
             fibers_data=fibers, 
@@ -113,7 +113,7 @@ class FiberToMonomer(Deriver):
             previous_monomers, fiber_monomers, monomer_box_center, monomer_box_size
         )
         
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         
         return result
 

@@ -12,7 +12,7 @@ from vivarium_models.processes.fiber_to_monomer import FiberToMonomer
 from vivarium_models.util import medyan_chandrasekaran_2019_fibers
 
 READDY_TIMESTEP = 0.0000001
-ALTERNATOR_PERIODS = [10.0, READDY_TIMESTEP]
+ALTERNATOR_PERIODS = [5.0, READDY_TIMESTEP]
 
 
 class ActinFiber(Composer):
@@ -88,7 +88,7 @@ def test_actin_fiber():
     args = parser.parse_args()
     initial_state = {
         "choices": {"medyan_active": True, "readdy_active": False},
-        "fibers_box_size": 4000.0,
+        "fibers_box_size": 3000.0,
         "fibers": medyan_chandrasekaran_2019_fibers,
     }
 
@@ -110,7 +110,7 @@ def test_actin_fiber():
         emit_processes=True,
     )
 
-    engine.update(15)
+    engine.update(6)
     engine.emitter.get_data()
 
 

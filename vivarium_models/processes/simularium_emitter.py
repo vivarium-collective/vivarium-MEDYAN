@@ -304,17 +304,14 @@ class SimulariumEmitter(Emitter):
                     vizualize_time_index += 1
                 if current_simulator == "readdy":
                     print(f"  visualize readdy")
-                    try:
-                        trajectory = self.get_simularium_monomers(
-                            vizualize_time_index,
-                            state["monomers"],
-                            actin_radius,
-                            np.array(state["monomers"]["box_center"])
-                            - 0.5 * box_dimensions,
-                            trajectory,
-                        )
-                    except:
-                        raise Exception(state["monomers"])
+                    trajectory = self.get_simularium_monomers(
+                        vizualize_time_index,
+                        state["monomers"],
+                        actin_radius,
+                        np.array(state["monomers"]["box_center"])
+                        - 0.5 * box_dimensions,
+                        trajectory,
+                    )
                     vizualize_time_index += 1
         simularium_converter = SimulariumEmitter.get_simularium_converter(
             trajectory, box_dimensions, 0.1

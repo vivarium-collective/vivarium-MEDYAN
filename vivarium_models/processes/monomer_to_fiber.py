@@ -96,7 +96,7 @@ class MonomerToFiber(Deriver):
 
         fiber_update = agents_update(previous_fibers, monomer_fibers)
         
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
 
         return {
             # "fibers_box_size": fibers_box_size, 

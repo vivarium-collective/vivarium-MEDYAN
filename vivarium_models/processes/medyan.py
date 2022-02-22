@@ -187,7 +187,7 @@ class MedyanProcess(Process):
             for id, fiber in fibers.items()
         }
         
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         
         return {"fibers": fibers}
 
