@@ -1,12 +1,5 @@
-# vivarium-models
+# vivarium-MEDYAN
 
-[![Build Status](https://github.com/allen-cell-animated/vivarium_models/workflows/Build%20Main/badge.svg)](https://github.com/allen-cell-animated/vivarium_models/actions)
-[![Documentation](https://github.com/allen-cell-animated/vivarium_models/workflows/Documentation/badge.svg)](https://allen-cell-animated.github.io/vivarium_models/)
-[![Code Coverage](https://codecov.io/gh/allen-cell-animated/vivarium_models/branch/main/graph/badge.svg)](https://codecov.io/gh/allen-cell-animated/vivarium_models)
-
-Connecting Simularium prototypes together using Vivarium
-
----
 
 ## Installation with pyenv + conda
 
@@ -63,17 +56,6 @@ cd build
 make
 ```
 
-### Alternatively:
-
-**Stable Release:** `pip install vivarium_models`<br>
-**Development Head:** `pip install git+https://github.com/allen-cell-animated/vivarium-models.git`
-
-ReaDDy models depend on ReaDDy, which requires conda. Install ReaDDy with `conda install -c readdy/label/dev readdy` after adding the conda-forge channel `conda config --add channels conda-forge`
-
-## Documentation
-
-For full package documentation please visit [allen-cell-animated.github.io/vivarium_models](https://allen-cell-animated.github.io/vivarium_models).
-
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for information related to developing the code.
@@ -99,6 +81,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for information related to developing the
 
     This will generate and launch a web browser to view the most up-to-date
     documentation for your Python package.
-
-
-
