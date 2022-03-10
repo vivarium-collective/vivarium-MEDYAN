@@ -48,11 +48,11 @@ clean:  ## clean all build, python, and testing files
 build: ## run tox / run tests and lint
 	tox
 
-gen-docs: ## generate Sphinx HTML documentation, including API docs
-	rm -f docs/vivarium_models*.rst
-	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/ vivarium_models **/tests/
-	$(MAKE) -C docs html
+# gen-docs: ## generate Sphinx HTML documentation, including API docs
+# 	rm -f docs/vivarium_medyan*.rst
+# 	rm -f docs/modules.rst
+# 	sphinx-apidoc -o docs/ vivarium_medyan **/tests/
+# 	$(MAKE) -C docs html
 
 docs: ## generate Sphinx HTML documentation, including API docs, and serve to browser
 	make gen-docs
