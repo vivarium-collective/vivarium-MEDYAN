@@ -233,5 +233,6 @@ def main():
     plot_simulation_output(output, plot_settings, out_dir)
 
 
+# python vivarium_medyan/processes/medyan.py
 if __name__ == "__main__":
     main()
