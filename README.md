@@ -1,5 +1,6 @@
 # vivarium-MEDYAN
 
+Provides a Vivarium Process wrapper for [MEDYAN](http://medyan.org/index.html)
 
 ## Installation with pyenv + conda
 
