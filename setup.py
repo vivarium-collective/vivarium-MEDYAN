@@ -39,7 +39,7 @@ dev_requirements = [
 
 requirements = [
     "vivarium-core",
-    "simularium_models_util[viz] @ git+https://github.com/allen-cell-animated/simularium-models-util.git",
+    "simulariumio>=1.5.0",
     "Jinja2",
 ]
 
@@ -55,27 +55,22 @@ extra_requirements = {
 
 setup(
     author="Blair Lyons",
-    author_email="blairl@alleninstitute.org",
+    author_email="blair208@gmail.com",
     classifiers=[
         "Development Status :: 2 - Pre-Alpha",
         "Intended Audience :: Developers",
-        "License :: Free for non-commercial use",
+        "License :: OSI Approved :: Apache Software License",
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
     ],
     description="Vivarium Processes for MEDYAN",
-    entry_points={
-        "console_scripts": [
-            "my_example=vivarium_medyan.bin.my_example:main"
-        ],
-    },
     install_requires=requirements,
-    license="Apache 2.0",
+    license="Apache Software License 2.0",
     long_description=readme,
     long_description_content_type="text/markdown",
     include_package_data=True,
-    keywords="vivarium_medyan",
+    keywords=["vivarium", "medyan"],
     name="vivarium_medyan",
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*"]),
     python_requires=">=3.8",
@@ -83,6 +78,7 @@ setup(
     test_suite="vivarium_medyan/tests",
     tests_require=test_requirements,
     extras_require=extra_requirements,
+    url="https://github.com/vivarium-collective/vivarium-MEDYAN",
     # Do not edit this string manually, always use bumpversion
     # Details in CONTRIBUTING.rst
     version="0.0.0",

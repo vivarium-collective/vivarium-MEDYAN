@@ -157,8 +157,7 @@ class MedyanProcess(Process):
             for id, fiber in fibers.items()
         }
 
-        import ipdb;
-        ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         return {"fibers_box_extent": box_extent, "fibers": fibers}
 
@@ -173,7 +172,7 @@ class MedyanProcess(Process):
         coordinate_strs = coordinates_line.strip().split(" ")
         coordinates = []
         for n in range(0, len(coordinate_strs), 3):
-            point = coordinate_strs[n: n + 3]
+            point = coordinate_strs[n : n + 3]
             coordinates.append(np.array([float(p) for p in point]))
         return coordinates
 
