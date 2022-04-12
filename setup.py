@@ -73,7 +73,7 @@ setup(
     keywords=["vivarium", "medyan"],
     name="vivarium_medyan",
     package_data={
-        'templates': ['templates/*']},
+        '': ['templates/*']},
     packages=find_packages(exclude=["tests", "*.tests", "*.tests.*"]),
     python_requires=">=3.8",
     setup_requires=setup_requirements,
