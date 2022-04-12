@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Top-level package for vivarium-ReaDDy."""
+"""Top-level package for vivarium-MEDYAN."""
 
 __author__ = "Blair Lyons"
 __email__ = "blair208@gmail.com"
