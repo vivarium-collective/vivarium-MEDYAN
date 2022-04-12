@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import argparse
+import shutil
 
 from vivarium.core.process import Process
 from vivarium.core.composition import (
@@ -106,20 +107,32 @@ class MedyanProcess(Process):
         input_directory = Path(self.parameters["input_directory"]) / Path(
             self.parameters["model_name"]
         )
+        if not os.path.exists(input_directory):
+            os.makedirs(input_directory)
 
         output_directory = Path(self.parameters["output_directory"]) / Path(
             self.parameters["model_name"]
         )
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
-
+            
+        # move additional config files to input directory
+        template_directory = Path("vivarium_medyan/templates") / Path(
+            self.parameters["model_name"]
+        )
+        config_files = template_directory.glob('*')
+        for config_file in config_files:
+            if self.parameters["model_name"] in config_file.name or "txt" not in config_file.suffix:
+                continue
+            shutil.copyfile(config_file, input_directory / config_file.name)
+    
         fiber_text = "\n".join(fiber_lines)
 
         fiber_path = input_directory / "filaments.txt"
         with open(fiber_path, "w") as fiber_file:
             fiber_file.write(fiber_text)
 
-        system_template = self.parameters["model_name"] + ".txt"
+        system_template = str(Path(self.parameters["model_name"]) / (self.parameters["model_name"] + ".txt"))
         template = env.get_template(system_template)
         system_text = template.render(
             timestep=timestep,
@@ -224,10 +237,6 @@ def main():
         medyan,
         {"initial_state": initial_state, "total_time": 100, "return_raw_data": True},
     )
-
-    # plot the simulation output
-    plot_settings = {}
-    plot_simulation_output(output, plot_settings, out_dir)
 
 
 if __name__ == "__main__":
