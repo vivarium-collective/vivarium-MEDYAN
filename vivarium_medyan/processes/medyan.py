@@ -37,10 +37,19 @@ class MedyanProcess(Process):
 
     def __init__(self, parameters=None):
         super().__init__(parameters)
+        assert self.parameters["time_step"] >= self.parameters["snapshot"]
         self._jinja_environment = None
         self.filament_type_names = []
-
-        assert self.parameters["time_step"] >= self.parameters["snapshot"]
+        self.input_path = Path(self.parameters["input_directory"]) / Path(
+            self.parameters["model_name"]
+        )
+        if not os.path.exists(self.input_path):
+            os.makedirs(self.input_path)
+        self.output_path = Path(self.parameters["output_directory"]) / Path(
+            self.parameters["model_name"]
+        )
+        if not os.path.exists(self.output_path):
+            os.makedirs(self.output_path)
 
     def jinja_environment(self):
         if self._jinja_environment is None:
@@ -54,69 +63,12 @@ class MedyanProcess(Process):
         return fibers_schema()
 
     def initial_state(self, config):
-        init_fibers = {
-            unique_id: {"type_name": "A", "points": points}
-            for unique_id, points in config.get("fibers", {}).items()
-        }
-        return {
-            "fibers_box_extent": np.array([4000.0, 2000.0, 2000.0]),
-            "fibers": init_fibers,
-        }
-
-    def transform_points(self, points, inverse=False):
-        transform = np.array(self.parameters["transform_points"])
-        if inverse:
-            transform = -transform
-        return [transform + point for point in points]
-
-    def transform_fiber(self, fiber, inverse=False):
-        fiber["points"] = self.transform_points(fiber["points"], inverse)
-        return fiber
-
-    def read_snapshot(self, snapshot_path):
-        # TODO: read only the last timepoint for each fiber
-
-        with open(snapshot_path, "r") as snapshot:
-            snapshot_lines = snapshot.read().split("\n")
-
-        index = 0
-        fibers = {}
-        while index < len(snapshot_lines):
-            line = snapshot_lines[index]
-            if "FILAMENT" in line:
-                coordinates_line = snapshot_lines[index + 1]
-                fiber = self.read_fiber(line, coordinates_line)
-                fibers.update(fiber)
-                index += 2
-            else:
-                index += 1
-
-        return fibers
+        return {}
 
     def next_update(self, timestep, state):
         print("in medyan process next update")
 
         init_fibers = state["fibers"]
-        fiber_ids = list(init_fibers.keys())
-
-        fiber_lines = [
-            self.fiber_to_string(
-                fiber["type_name"], self.transform_points(fiber["points"])
-            )
-            for fiber in init_fibers.values()
-        ]
-
-        input_directory = Path(self.parameters["input_directory"]) / Path(
-            self.parameters["model_name"]
-        )
-        if not os.path.exists(input_directory):
-            os.makedirs(input_directory)
-
-        output_directory = Path(self.parameters["output_directory"]) / Path(
-            self.parameters["model_name"]
-        )
-        if not os.path.exists(output_directory):
-            os.makedirs(output_directory)
 
         # move additional config files to input directory
         template_directory = Path(self.parameters["template_directory"]) / Path(
@@ -129,20 +81,26 @@ class MedyanProcess(Process):
                 or "txt" not in config_file.suffix
             ):
                 continue
-            shutil.copyfile(config_file, input_directory / config_file.name)
+            shutil.copyfile(config_file, self.input_path / config_file.name)
 
+        # create fiber input file
+        fiber_lines = [
+            self.fiber_to_string(
+                fiber["type_name"], self.transform_points(fiber["points"])
+            )
+            for fiber in init_fibers.values()
+        ]
         fiber_text = "\n".join(fiber_lines)
-
-        fiber_path = input_directory / "filaments.txt"
+        fiber_path = self.input_path / "filaments.txt"
         with open(fiber_path, "w") as fiber_file:
             fiber_file.write(fiber_text)
 
-        system_template = str(
+        # render template
+        system_template_path = str(
             Path(self.parameters["model_name"])
             / (self.parameters["model_name"] + ".txt")
         )
-
-        template = self.jinja_environment().get_template(system_template)
+        template = self.jinja_environment().get_template(system_template_path)
         system_text = template.render(
             timestep=timestep,
             snapshot_time=self.parameters["snapshot"],
@@ -151,38 +109,63 @@ class MedyanProcess(Process):
             else "PROJECTIONTYPE:               "
             + self.parameters["filament_projection_type"],
         )
-        box_extent = MedyanProcess.read_box_extent(system_text)
-
-        system_path = input_directory / (self.parameters["model_name"] + ".txt")
-        with open(system_path, "w") as system_file:
+        system_file_path = self.input_path / (self.parameters["model_name"] + ".txt")
+        with open(system_file_path, "w") as system_file:
             system_file.write(system_text)
 
+        # run MEDYAN
         medyan_command = [
             self.parameters["medyan_executable"],
             "-s",
             system_file.name,
             "-i",
-            str(input_directory),
+            str(self.input_path),
             "-o",
             Path(self.parameters["output_directory"])
             / Path(self.parameters["model_name"]),
         ]
-
         medyan_process = subprocess.Popen(medyan_command, stdout=subprocess.PIPE)
         output, error = medyan_process.communicate()
-
         print(output.decode("utf-8"))
 
-        fibers = self.read_snapshot(output_directory / "snapshot.traj")
-
+        # get outputs
+        box_extent = MedyanProcess.read_box_extent(system_text)
+        fibers = self.read_snapshot(self.output_path / "snapshot.traj")
         fibers = {
-            fiber_ids[int(fiber_id)]: self.transform_fiber(fiber, inverse=True)
+            fiber_id: self.transform_fiber(fiber, inverse=True)
             for fiber_id, fiber in fibers.items()
         }
 
         # import ipdb; ipdb.set_trace()
 
         return {"fibers_box_extent": box_extent, "fibers": fibers}
+
+    def transform_points(self, points, inverse=False):
+        transform = np.array(self.parameters["transform_points"])
+        if inverse:
+            transform = -transform
+        return [transform + point for point in points]
+
+    def transform_fiber(self, fiber, inverse=False):
+        fiber["points"] = self.transform_points(fiber["points"], inverse)
+        return fiber
+
+    def read_snapshot(self, snapshot_path):
+        # TODO: optimize to read only the last timepoint for each fiber
+        with open(snapshot_path, "r") as snapshot:
+            snapshot_lines = snapshot.read().split("\n")
+        index = 0
+        fibers = {}
+        while index < len(snapshot_lines):
+            line = snapshot_lines[index]
+            if "FILAMENT" in line:
+                coordinates_line = snapshot_lines[index + 1]
+                fiber = self.read_fiber(line, coordinates_line)
+                fibers.update(fiber)
+                index += 2
+            else:
+                index += 1
+        return fibers
 
     def fiber_to_string(self, type_name, points):
         if type_name not in self.filament_type_names:
@@ -234,19 +217,16 @@ def main():
         help="the file path to the MEDYAN executable",
     )
     args = parser.parse_args()
-
     medyan = MedyanProcess(
         {
             "medyan_executable": args.medyan_executable_path,
-            "transform_points": [500, 500, 500],
+            "transform_points": [2000.0, 1000.0, 1000.0],
             "time_step": 10.0,
         }
     )
-    initial_state = initial_fibers
-
     output = simulate_process(
         medyan,
-        {"initial_state": initial_state, "total_time": 30, "return_raw_data": True},
+        {"initial_state": initial_fibers, "total_time": 30, "return_raw_data": True},
     )
 
 
