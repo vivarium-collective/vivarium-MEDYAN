@@ -37,6 +37,7 @@ class MedyanProcess(Process):
         "tranform_bounds": np.array([0, 0, 0]),
         # TODO: provide a way to parameterize type name,
         #    translating between simulation type names and MEDYAN type indexes
+        "filament_projection_type": "",
     }
 
     def __init__(self, parameters=None):
@@ -143,6 +144,10 @@ class MedyanProcess(Process):
         system_text = template.render(
             timestep=timestep,
             snapshot_time=self.parameters["snapshot"],
+            projection_type=""
+            if not self.parameters["filament_projection_type"]
+            else "PROJECTIONTYPE:               "
+            + self.parameters["filament_projection_type"],
         )
         box_extent = MedyanProcess.read_box_extent(system_text)
 

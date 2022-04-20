@@ -119,7 +119,7 @@ FILAMENTFILE:                filaments.txt
 #NUMFILAMENTS:                0
 #FILAMENTLENGTH:              1
 #FILAMENTTYPE: 				  0
-PROJECTIONTYPE:               PREDEFINED
+{{projection_type}}
      
 
 #################################################
