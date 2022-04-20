@@ -4,10 +4,7 @@ import argparse
 import shutil
 
 from vivarium.core.process import Process
-from vivarium.core.composition import (
-    simulate_process,
-    PROCESS_OUT_DIR,
-)
+from vivarium.core.composition import simulate_process
 from vivarium.plots.simulation_output import plot_simulation_output
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -34,15 +31,14 @@ class MedyanProcess(Process):
         "template_directory": "vivarium_medyan/templates/",
         "medyan_executable": "medyan",
         "snapshot": 1.0,
-        "tranform_bounds": np.array([0, 0, 0]),
-        # TODO: provide a way to parameterize type name,
-        #    translating between simulation type names and MEDYAN type indexes
+        "transform_points": np.array([0, 0, 0]),
         "filament_projection_type": "",
     }
 
     def __init__(self, parameters=None):
         super().__init__(parameters)
         self._jinja_environment = None
+        self.filament_type_names = []
 
         assert self.parameters["time_step"] >= self.parameters["snapshot"]
 
@@ -58,13 +54,13 @@ class MedyanProcess(Process):
         return fibers_schema()
 
     def initial_state(self, config):
-        initial_fibers = {
+        init_fibers = {
             unique_id: {"type_name": "A", "points": points}
             for unique_id, points in config.get("fibers", {}).items()
         }
         return {
             "fibers_box_extent": np.array([4000.0, 2000.0, 2000.0]),
-            "fibers": initial_fibers,
+            "fibers": init_fibers,
         }
 
     def transform_points(self, points, inverse=False):
@@ -88,9 +84,8 @@ class MedyanProcess(Process):
         while index < len(snapshot_lines):
             line = snapshot_lines[index]
             if "FILAMENT" in line:
-                # TODO: parse line and pull out fiber id and type
                 coordinates_line = snapshot_lines[index + 1]
-                fiber = MedyanProcess.read_fiber(line, coordinates_line)
+                fiber = self.read_fiber(line, coordinates_line)
                 fibers.update(fiber)
                 index += 2
             else:
@@ -101,14 +96,14 @@ class MedyanProcess(Process):
     def next_update(self, timestep, state):
         print("in medyan process next update")
 
-        initial_fibers = state["fibers"]
-        fiber_ids = list(initial_fibers.keys())
+        init_fibers = state["fibers"]
+        fiber_ids = list(init_fibers.keys())
 
         fiber_lines = [
-            MedyanProcess.fiber_to_string(
+            self.fiber_to_string(
                 fiber["type_name"], self.transform_points(fiber["points"])
             )
-            for fiber in initial_fibers.values()
+            for fiber in init_fibers.values()
         ]
 
         input_directory = Path(self.parameters["input_directory"]) / Path(
@@ -122,24 +117,31 @@ class MedyanProcess(Process):
         )
         if not os.path.exists(output_directory):
             os.makedirs(output_directory)
-            
+
         # move additional config files to input directory
         template_directory = Path(self.parameters["template_directory"]) / Path(
             self.parameters["model_name"]
         )
-        config_files = template_directory.glob('*')
+        config_files = template_directory.glob("*")
         for config_file in config_files:
-            if self.parameters["model_name"] in config_file.name or "txt" not in config_file.suffix:
+            if (
+                self.parameters["model_name"] in config_file.name
+                or "txt" not in config_file.suffix
+            ):
                 continue
             shutil.copyfile(config_file, input_directory / config_file.name)
-    
+
         fiber_text = "\n".join(fiber_lines)
 
         fiber_path = input_directory / "filaments.txt"
         with open(fiber_path, "w") as fiber_file:
             fiber_file.write(fiber_text)
 
-        system_template = str(Path(self.parameters["model_name"]) / (self.parameters["model_name"] + ".txt"))
+        system_template = str(
+            Path(self.parameters["model_name"])
+            / (self.parameters["model_name"] + ".txt")
+        )
+
         template = self.jinja_environment().get_template(system_template)
         system_text = template.render(
             timestep=timestep,
@@ -171,23 +173,26 @@ class MedyanProcess(Process):
 
         print(output.decode("utf-8"))
 
-        # TODO: perform the reverse transform for output points
-
         fibers = self.read_snapshot(output_directory / "snapshot.traj")
 
         fibers = {
-            fiber_ids[int(id)]: self.transform_fiber(fiber, inverse=True)
-            for id, fiber in fibers.items()
+            fiber_ids[int(fiber_id)]: self.transform_fiber(fiber, inverse=True)
+            for fiber_id, fiber in fibers.items()
         }
 
         # import ipdb; ipdb.set_trace()
 
         return {"fibers_box_extent": box_extent, "fibers": fibers}
 
-    @staticmethod
-    def fiber_to_string(type_name, points):
+    def fiber_to_string(self, type_name, points):
+        if type_name not in self.filament_type_names:
+            type_index = len(self.filament_type_names)
+            self.filament_type_names.append(type_name)
+        else:
+            type_index = self.filament_type_names.index(type_name)
+        type_name = self.filament_type_names[type_index]
         point_strs = [" ".join([str(element) for element in point]) for point in points]
-        line = " ".join(["FILAMENT", str(type_name)] + point_strs)
+        line = " ".join(["FILAMENT", str(type_index)] + point_strs)
         return line
 
     @staticmethod
@@ -199,11 +204,11 @@ class MedyanProcess(Process):
             coordinates.append(np.array([float(p) for p in point]))
         return coordinates
 
-    @staticmethod
-    def read_fiber(fiber_line, coordinates_line):
-        _, id, type, length, delta_l, delta_r = fiber_line.split(" ")
+    def read_fiber(self, fiber_line, coordinates_line):
+        _, fiber_id, type_index, length, delta_l, delta_r = fiber_line.split(" ")
+        type_name = self.filament_type_names[int(type_index)]
         coordinates = MedyanProcess.read_coordinates(coordinates_line)
-        return {id: {"type_name": type, "points": coordinates}}
+        return {fiber_id: {"type_name": type_name, "points": coordinates}}
 
     @staticmethod
     def read_box_extent(system_text):
@@ -230,11 +235,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # make an output directory to save plots
-    out_dir = os.path.join(PROCESS_OUT_DIR, NAME)
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
     medyan = MedyanProcess(
         {
             "medyan_executable": args.medyan_executable_path,
@@ -246,7 +246,7 @@ def main():
 
     output = simulate_process(
         medyan,
-        {"initial_state": initial_state, "total_time": 100, "return_raw_data": True},
+        {"initial_state": initial_state, "total_time": 30, "return_raw_data": True},
     )
 
 
