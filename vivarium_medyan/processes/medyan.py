@@ -10,11 +10,7 @@ from vivarium.core.composition import (
 )
 from vivarium.plots.simulation_output import plot_simulation_output
 
-from jinja2 import Environment, PackageLoader, select_autoescape
-
-env = Environment(
-    loader=PackageLoader("vivarium_medyan"), autoescape=select_autoescape()
-)
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from pathlib import Path
 import subprocess
@@ -35,6 +31,7 @@ class MedyanProcess(Process):
         "model_name": "medyan_Chandrasekaran_2019_no_tread_2mUNI_alphaA_0.1_MA_0.675",
         "input_directory": "in/",
         "output_directory": "out/",
+        "template_directory": "vivarium_medyan/templates/",
         "medyan_executable": "medyan",
         "snapshot": 1.0,
         "tranform_bounds": np.array([0, 0, 0]),
@@ -44,8 +41,17 @@ class MedyanProcess(Process):
 
     def __init__(self, parameters=None):
         super().__init__(parameters)
+        self._jinja_environment = None
 
         assert self.parameters["time_step"] >= self.parameters["snapshot"]
+
+    def jinja_environment(self):
+        if self._jinja_environment is None:
+            self._jinja_environment = Environment(
+                loader=FileSystemLoader(self.parameters["template_directory"]),
+                autoescape=select_autoescape(),
+            )
+        return self._jinja_environment
 
     def ports_schema(self):
         return fibers_schema()
@@ -117,7 +123,7 @@ class MedyanProcess(Process):
             os.makedirs(output_directory)
             
         # move additional config files to input directory
-        template_directory = Path("vivarium_medyan/templates") / Path(
+        template_directory = Path(self.parameters["template_directory"]) / Path(
             self.parameters["model_name"]
         )
         config_files = template_directory.glob('*')
@@ -133,7 +139,7 @@ class MedyanProcess(Process):
             fiber_file.write(fiber_text)
 
         system_template = str(Path(self.parameters["model_name"]) / (self.parameters["model_name"] + ".txt"))
-        template = env.get_template(system_template)
+        template = self.jinja_environment().get_template(system_template)
         system_text = template.render(
             timestep=timestep,
             snapshot_time=self.parameters["snapshot"],
