@@ -6,6 +6,7 @@ import shutil
 from vivarium.core.process import Process
 from vivarium.core.composition import simulate_process
 from vivarium.plots.simulation_output import plot_simulation_output
+import docker
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -29,7 +30,6 @@ class MedyanProcess(Process):
         "input_directory": "in/",
         "output_directory": "out/",
         "template_directory": "vivarium_medyan/templates/",
-        "medyan_executable": "medyan",
         "snapshot": 1.0,
         "transform_points": np.array([0, 0, 0]),
         "filament_projection_type": "",
@@ -68,65 +68,13 @@ class MedyanProcess(Process):
     def next_update(self, timestep, state):
         print("in medyan process next update")
 
+        # set up inputs
         init_fibers = state["fibers"]
-
-        # move additional config files to input directory
-        template_directory = Path(self.parameters["template_directory"]) / Path(
-            self.parameters["model_name"]
-        )
-        config_files = template_directory.glob("*")
-        for config_file in config_files:
-            if (
-                self.parameters["model_name"] in config_file.name
-                or "txt" not in config_file.suffix
-            ):
-                continue
-            shutil.copyfile(config_file, self.input_path / config_file.name)
-
-        # create fiber input file
-        fiber_lines = [
-            self.fiber_to_string(
-                fiber["type_name"], self.transform_points(fiber["points"])
-            )
-            for fiber in init_fibers.values()
-        ]
-        fiber_text = "\n".join(fiber_lines)
-        fiber_path = self.input_path / "filaments.txt"
-        with open(fiber_path, "w") as fiber_file:
-            fiber_file.write(fiber_text)
-
-        # render template
-        system_template_path = str(
-            Path(self.parameters["model_name"])
-            / (self.parameters["model_name"] + ".txt")
-        )
-        template = self.jinja_environment().get_template(system_template_path)
-        system_text = template.render(
-            timestep=timestep,
-            snapshot_time=self.parameters["snapshot"],
-            projection_type=""
-            if not self.parameters["filament_projection_type"]
-            else "PROJECTIONTYPE:               "
-            + self.parameters["filament_projection_type"],
-        )
-        system_file_path = self.input_path / (self.parameters["model_name"] + ".txt")
-        with open(system_file_path, "w") as system_file:
-            system_file.write(system_text)
-
-        # run MEDYAN
-        medyan_command = [
-            self.parameters["medyan_executable"],
-            "-s",
-            system_file.name,
-            "-i",
-            str(self.input_path),
-            "-o",
-            Path(self.parameters["output_directory"])
-            / Path(self.parameters["model_name"]),
-        ]
-        medyan_process = subprocess.Popen(medyan_command, stdout=subprocess.PIPE)
-        output, error = medyan_process.communicate()
-        print(output.decode("utf-8"))
+        self.move_configs_to_input_dir()
+        self.create_fiber_input_file(init_fibers)
+        system_text = self.render_template(timestep)
+        
+        self.run_medyan()
 
         # get outputs
         box_extent = MedyanProcess.read_box_extent(system_text)
@@ -135,9 +83,6 @@ class MedyanProcess(Process):
             fiber_id: self.transform_fiber(fiber, inverse=True)
             for fiber_id, fiber in fibers.items()
         }
-
-        # import ipdb; ipdb.set_trace()
-
         return {"fibers_box_extent": box_extent, "fibers": fibers}
 
     def transform_points(self, points, inverse=False):
@@ -208,18 +153,83 @@ class MedyanProcess(Process):
                     compartment_size[dim] = float(line.split()[1])
         return np.multiply(n_compartments, compartment_size)
 
+    def move_configs_to_input_dir(self):
+        # move additional config files to input directory
+        template_directory = Path(self.parameters["template_directory"]) / Path(
+            self.parameters["model_name"]
+        )
+        config_files = template_directory.glob("*")
+        for config_file in config_files:
+            if (
+                self.parameters["model_name"] in config_file.name
+                or "txt" not in config_file.suffix
+            ):
+                continue
+            shutil.copyfile(config_file, self.input_path / config_file.name)
+
+    def create_fiber_input_file(self, init_fibers):
+        fiber_lines = [
+            self.fiber_to_string(
+                fiber["type_name"], self.transform_points(fiber["points"])
+            )
+            for fiber in init_fibers.values()
+        ]
+        fiber_text = "\n".join(fiber_lines)
+        fiber_path = self.input_path / "filaments.txt"
+        with open(fiber_path, "w") as fiber_file:
+            fiber_file.write(fiber_text)
+
+    def render_template(self, timestep):
+        system_template_path = str(
+            Path(self.parameters["model_name"])
+            / (self.parameters["model_name"] + ".txt")
+        )
+        template = self.jinja_environment().get_template(system_template_path)
+        system_text = template.render(
+            timestep=timestep,
+            snapshot_time=self.parameters["snapshot"],
+            projection_type=""
+            if not self.parameters["filament_projection_type"]
+            else "PROJECTIONTYPE:               "
+            + self.parameters["filament_projection_type"],
+        )
+        system_file_path = self.input_path / "systeminput.txt"
+        with open(system_file_path, "w") as system_file:
+            system_file.write(system_text)
+        return system_text
+
+    def run_medyan(self):
+        # docker_pull_command = ["docker", "pull", "simularium/medyan:5.4.0"]
+        # docker_pull_process = subprocess.Popen(docker_pull_command, stdout=subprocess.PIPE)
+        # pull_output, pull_error = docker_pull_process.communicate()
+        # print(pull_output.decode("utf-8"))
+        # print(pull_error)
+        abs_input_path = os.path.abspath(self.input_path)
+        abs_output_path = os.path.abspath(self.output_path)
+        client = docker.from_env()
+        container = client.containers.run(
+            image="medyan:5.4.0", 
+            name="medyan-container-name", 
+            volumes=[
+                f"{abs_input_path}:/home/input/", 
+                f"{abs_output_path}:/home/output/"
+            ], 
+            detach=True,
+        )
+        container.wait()   # block until container run is complete
+        logs = container.logs().decode("utf-8")   # get container logs
+        container.remove() # remove the container
+        print(logs)
+        if "Done with simulation!" not in logs: 
+            # MEDYAN usually does not raise errors
+            raise Exception(
+                f"MEDYAN simulation did not complete! Check output for error \n{abs_input_path}"
+            )
 
 def main():
     """Simulate the process and plot results."""
-    parser = argparse.ArgumentParser(description="Run a MEDYAN simulation")
-    parser.add_argument(
-        "medyan_executable_path",
-        help="the file path to the MEDYAN executable",
-    )
-    args = parser.parse_args()
     medyan = MedyanProcess(
         {
-            "medyan_executable": args.medyan_executable_path,
             "transform_points": [2000.0, 1000.0, 1000.0],
             "time_step": 10.0,
         }

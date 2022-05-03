@@ -19,7 +19,11 @@ conda env create -f env.yml
 conda activate vivarium-models
 ```
 
-### MEDYAN Installation
+### Get MEDYAN Docker Image (recommended)
+
+
+
+### Build MEDYAN
 
 Download the MEDYAN source here: http://medyan.org/download.html
 
