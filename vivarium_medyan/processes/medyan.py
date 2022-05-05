@@ -50,6 +50,7 @@ class MedyanProcess(Process):
         )
         if not os.path.exists(self.output_path):
             os.makedirs(self.output_path)
+        self.check_pull_docker_image()
 
     def jinja_environment(self):
         if self._jinja_environment is None:
@@ -58,6 +59,15 @@ class MedyanProcess(Process):
                 autoescape=select_autoescape(),
             )
         return self._jinja_environment
+    
+    def check_pull_docker_image(self):
+        client = docker.from_env()
+        images = client.images.list("simularium/medyan")
+        if len(images) < 1:
+            print("Downloading simularium/medyan:latest from Docker Hub...")
+            client.images.pull("simularium/medyan")
+        else:
+            print("medyan docker image already exists, skipping download")
 
     def ports_schema(self):
         return fibers_schema()
@@ -199,17 +209,12 @@ class MedyanProcess(Process):
         return system_text
 
     def run_medyan(self):
-        # docker_pull_command = ["docker", "pull", "simularium/medyan:5.4.0"]
-        # docker_pull_process = subprocess.Popen(docker_pull_command, stdout=subprocess.PIPE)
-        # pull_output, pull_error = docker_pull_process.communicate()
-        # print(pull_output.decode("utf-8"))
-        # print(pull_error)
         abs_input_path = os.path.abspath(self.input_path)
         abs_output_path = os.path.abspath(self.output_path)
         client = docker.from_env()
         container = client.containers.run(
-            image="medyan:5.4.0", 
-            name="medyan-container-name", 
+            image="simularium/medyan:latest", 
+            name="medyan-container", 
             volumes=[
                 f"{abs_input_path}:/home/input/", 
                 f"{abs_output_path}:/home/output/"
@@ -223,7 +228,7 @@ class MedyanProcess(Process):
         if "Done with simulation!" not in logs: 
             # MEDYAN usually does not raise errors
             raise Exception(
-                f"MEDYAN simulation did not complete! Check output for error \n{abs_input_path}"
+                "MEDYAN simulation did not complete! Check output for error\n"
             )
 
 def main():

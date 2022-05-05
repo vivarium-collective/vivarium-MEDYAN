@@ -19,21 +19,7 @@ conda env create -f env.yml
 conda activate vivarium-models
 ```
 
-### Get MEDYAN Docker Image (recommended)
-
-
-
-### Build MEDYAN
-
-Download the MEDYAN source here: http://medyan.org/download.html
-
-Unzip and cd into that dir, then at the command line:
-
-```
-./conf.sh
-cd build
-make
-```
+The `MedyanProcess` will download the latest MEDYAN image from Simularium Docker Hub the first time it runs, and use that to simulate in MEDYAN.
 
 # Development
 
