@@ -65,10 +65,10 @@ BOUNDARYSCREENLENGTH:       2.7
 CHEMISTRYFILE:               chemistryinput.txt
 
 CALGORITHM:                  NRM
-NUMTOTALSTEPS:		     	 
+#NUMTOTALSTEPS:		     	 
 RUNTIME:                     {{timestep}}
 
-NUMSTEPSPERS:		    
+#NUMSTEPSPERS:		    
 SNAPSHOTTIME:                {{snapshot_time}}
 MINIMIZATIONTIME: 0.02
 NEIGHBORLISTTIME: 0.02
@@ -76,19 +76,19 @@ NEIGHBORLISTTIME: 0.02
 #NUMCHEMSTEPS:                175000
 #NUMSTEPSPERN:                175000
 
-NUMDIFFUSINGSPECIES: 	     3
-NUMBULKSPECIES:		     	 0
+#NUMDIFFUSINGSPECIES: 	     3
+#NUMBULKSPECIES:		     	 0
 
 NUMFILAMENTTYPES:			 1
 
-NUMFILAMENTSPECIES:          1
-NUMPLUSENDSPECIES:           1
-NUMMINUSENDSPECIES:          1
+#NUMFILAMENTSPECIES:          1
+#NUMPLUSENDSPECIES:           1
+#NUMMINUSENDSPECIES:          1
 
-NUMBOUNDSPECIES:             2
-NUMLINKERSPECIES:            1
-NUMMOTORSPECIES:             1
-NUMBRANCHERSPECIES:          0
+#NUMBOUNDSPECIES:             2
+#NUMLINKERSPECIES:            1
+#NUMMOTORSPECIES:             1
+#NUMBRANCHERSPECIES:          0
 
 NUMBINDINGSITES:             4
 
@@ -125,10 +125,10 @@ FILAMENTFILE:                filaments.txt
 #################################################
 ##################### OUTPUT ####################
 
-OUTPUTTYPE:                 SNAPSHOT
-OUTPUTTYPE:                 BIRTHTIMES
-OUTPUTTYPE:                 FORCES
-OUTPUTTYPE:                 TENSIONS  
-OUTPUTTYPE: 				CHEMISTRY
+#OUTPUTTYPE:                 SNAPSHOT
+#OUTPUTTYPE:                 BIRTHTIMES
+#OUTPUTTYPE:                 FORCES
+#OUTPUTTYPE:                 TENSIONS  
+#OUTPUTTYPE: 				CHEMISTRY
 
 
