@@ -59,7 +59,7 @@ class MedyanProcess(Process):
                 autoescape=select_autoescape(),
             )
         return self._jinja_environment
-    
+
     def check_pull_docker_image(self):
         client = docker.from_env()
         images = client.images.list("simularium/medyan")
@@ -83,8 +83,8 @@ class MedyanProcess(Process):
         self.move_configs_to_input_dir()
         self.create_fiber_input_file(init_fibers)
         system_text = self.render_template(timestep)
-        
-        self.run_medyan()
+
+        self.run_medyan(self.input_path, self.output_path)
 
         # get outputs
         box_extent = MedyanProcess.read_box_extent(system_text)
@@ -202,34 +202,37 @@ class MedyanProcess(Process):
             if not self.parameters["filament_projection_type"]
             else "PROJECTIONTYPE:               "
             + self.parameters["filament_projection_type"],
+            # box_size=TODO
         )
         system_file_path = self.input_path / "systeminput.txt"
         with open(system_file_path, "w") as system_file:
             system_file.write(system_text)
         return system_text
 
-    def run_medyan(self):
-        abs_input_path = os.path.abspath(self.input_path)
-        abs_output_path = os.path.abspath(self.output_path)
+    @staticmethod
+    def run_medyan(input_path, output_path):
+        abs_input_path = os.path.abspath(input_path)
+        abs_output_path = os.path.abspath(output_path)
         client = docker.from_env()
         container = client.containers.run(
-            image="simularium/medyan:latest", 
-            name="medyan-container", 
+            image="simularium/medyan:latest",
+            name="medyan-container",
             volumes=[
-                f"{abs_input_path}:/home/input/", 
-                f"{abs_output_path}:/home/output/"
-            ], 
+                f"{abs_input_path}:/home/input/",
+                f"{abs_output_path}:/home/output/",
+            ],
             detach=True,
         )
-        container.wait()   # block until container run is complete
-        logs = container.logs().decode("utf-8")   # get container logs
-        container.remove() # remove the container
+        container.wait()  # block until container run is complete
+        logs = container.logs().decode("utf-8")  # get container logs
+        container.remove()  # remove the container
         print(logs)
-        if "Done with simulation!" not in logs: 
+        if "Done with simulation!" not in logs:
             # MEDYAN usually does not raise errors
             raise Exception(
                 "MEDYAN simulation did not complete! Check output for error\n"
             )
+
 
 def main():
     """Simulate the process and plot results."""
