@@ -75,11 +75,11 @@ class MedyanProcess(Process):
     def initial_state(self, config):
         return {}
 
-    def next_update(self, timestep, state):
+    def next_update(self, timestep, states):
         print("in medyan process next update")
 
         # set up inputs
-        init_fibers = state["fibers"]
+        init_fibers = states["fibers"]
         self.move_configs_to_input_dir()
         self.create_fiber_input_file(init_fibers)
         system_text = self.render_template(timestep)
