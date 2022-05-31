@@ -33,6 +33,7 @@ class MedyanProcess(Process):
         "snapshot": 1.0,
         "transform_points": np.array([0, 0, 0]),
         "filament_projection_type": "",
+        "docker_network": None,
     }
 
     def __init__(self, parameters=None):
@@ -61,13 +62,16 @@ class MedyanProcess(Process):
         return self._jinja_environment
 
     def check_pull_docker_image(self):
-        client = docker.from_env()
-        images = client.images.list("simularium/medyan")
-        if len(images) < 1:
-            print("Downloading simularium/medyan:latest from Docker Hub...")
-            client.images.pull("simularium/medyan")
+        if self.parameters['docker_network']:
+            pass
         else:
-            print("medyan docker image already exists, skipping download")
+            client = docker.from_env()
+            images = client.images.list("simularium/medyan")
+            if len(images) < 1:
+                print("Downloading simularium/medyan:latest from Docker Hub...")
+                client.images.pull("simularium/medyan")
+            else:
+                print("medyan docker image already exists, skipping download")
 
     def ports_schema(self):
         return fibers_schema()
@@ -209,8 +213,31 @@ class MedyanProcess(Process):
             system_file.write(system_text)
         return system_text
 
-    @staticmethod
-    def run_medyan(input_path, output_path):
+    def run_medyan(self, input_path, output_path):
+        if self.parameters['docker_network']:
+            self.run_network_medyan(input_path, output_path)
+        else:
+            self.run_local_medyan(input_path, output_path)
+
+    def run_network_medyan(self, input_path, output_path):
+        abs_input_path = os.path.abspath(input_path)
+        abs_output_path = os.path.abspath(output_path)
+        # network = docker.
+        # TODO implement this through the network API (?)
+        client = docker.from_env()
+        container = client.containers.run(
+            image="simularium/medyan:latest",
+            name="medyan-container",
+            volumes=[
+                f"{abs_input_path}:/home/input/",
+                f"{abs_output_path}:/home/output/",
+            ],
+            detach=True,
+        )
+        container.wait()  # block until container run is complete
+        logs = container.logs().decode("utf-8")  # get container logs
+
+    def run_local_medyan(self, input_path, output_path):
         abs_input_path = os.path.abspath(input_path)
         abs_output_path = os.path.abspath(output_path)
         client = docker.from_env()

@@ -25,6 +25,32 @@ The `MedyanProcess` will download the latest MEDYAN image from Simularium Docker
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for information related to developing the code.
 
+## useful docker commands
+
+### create a new docker network
+
+> docker network create vivarium-test
+
+### build a docker container from scratch
+
+> docker build --no-cache -t vivarium-medyan:latest ./
+
+### start a long-running container (inside a network)
+
+> docker run --network vivarium-test --network-alias medyan -t -d vivarium-medyan
+
+### execute a command inside a running container
+
+> docker exec sweet_feistel ./medyan
+
+### kill a running container
+
+> docker container kill sweet_feistel
+
+### kill all containers
+
+> docker system prune
+
 ## Commands You Need To Know
 
 1. `black vivarium_medyan`

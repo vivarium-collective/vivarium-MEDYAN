@@ -12,4 +12,4 @@ RUN apt-get -y upgrade
 RUN apt-get -y install --no-install-recommends libx11-dev
 
 # Run MEDYAN
-ENTRYPOINT ["./medyan", "-i", "/home/input", "-o", "/home/output", "-s", "/home/input/systeminput.txt"]
+# ENTRYPOINT ["./medyan", "-i", "/home/input", "-o", "/home/output", "-s", "/home/input/systeminput.txt"]
