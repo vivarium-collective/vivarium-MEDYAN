@@ -90,7 +90,7 @@ class MedyanProcess(Process):
             fiber_id: self.transform_fiber(fiber, inverse=True)
             for fiber_id, fiber in fibers.items()
         }
-        
+
         return {"fibers_box_extent": box_extent, "fibers": fibers}
 
     def transform_points(self, points, inverse=False):
