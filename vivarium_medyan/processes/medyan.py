@@ -1,17 +1,14 @@
 import os
 import numpy as np
-import argparse
 import shutil
 
 from vivarium.core.process import Process
 from vivarium.core.composition import simulate_process
-from vivarium.plots.simulation_output import plot_simulation_output
 import docker
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from pathlib import Path
-import subprocess
 from vivarium_medyan.library.schema import fibers_schema
 from vivarium_medyan.data.fibers import initial_fibers
 
@@ -93,6 +90,7 @@ class MedyanProcess(Process):
             fiber_id: self.transform_fiber(fiber, inverse=True)
             for fiber_id, fiber in fibers.items()
         }
+        
         return {"fibers_box_extent": box_extent, "fibers": fibers}
 
     def transform_points(self, points, inverse=False):
