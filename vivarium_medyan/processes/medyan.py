@@ -3,7 +3,7 @@ import numpy as np
 import shutil
 
 from vivarium.core.process import Process
-from vivarium.core.composition import simulate_process
+from vivarium.core.engine import Engine
 import docker
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -240,10 +240,18 @@ def main():
             "time_step": 10.0,
         }
     )
-    output = simulate_process(
-        medyan,
-        {"initial_state": initial_fibers, "total_time": 30, "return_raw_data": True},
+    engine = Engine(
+        processes={"medyan": medyan},
+        topology={
+            "medyan": {
+                "fibers": ("fibers",),
+                "fibers_box_extent": ("fibers_box_extent",),
+            }
+        },
+        initial_state=initial_fibers,
     )
+    engine.update(30.0)
+    engine.emitter.get_data()
 
 
 if __name__ == "__main__":
